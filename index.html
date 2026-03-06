@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 
@@ -14,7 +15,14 @@ body{
 font-family:Arial;
 background:#f5f6fb;
 margin:0;
-padding:0;
+}
+
+.header{
+background:linear-gradient(135deg,#5b5bd6,#7f8cff);
+color:white;
+padding:40px;
+text-align:center;
+border-radius:0 0 20px 20px;
 }
 
 .container{
@@ -29,14 +37,6 @@ padding:20px;
 border-radius:15px;
 margin-bottom:20px;
 box-shadow:0 5px 15px rgba(0,0,0,0.1);
-}
-
-.header{
-background:linear-gradient(135deg,#5b5bd6,#7f8cff);
-color:white;
-padding:40px;
-text-align:center;
-border-radius:0 0 20px 20px;
 }
 
 input,select{
@@ -62,8 +62,8 @@ cursor:pointer;
 .item{
 display:flex;
 justify-content:space-between;
-padding:10px;
 border-bottom:1px solid #eee;
+padding:10px;
 }
 
 .login{
@@ -97,13 +97,33 @@ margin-top:100px;
 <input id="descricao" placeholder="Descrição">
 
 <select id="tipo">
-<option value="despesa">Despesa</option>
 <option value="receita">Receita</option>
+<option value="despesa">Despesa</option>
+</select>
+
+<select id="categoria">
+
+<option>Alimentação</option>
+<option>Transporte</option>
+<option>Moradia</option>
+<option>Saúde</option>
+<option>Lazer</option>
+<option>Salário</option>
+<option>Outros</option>
+
 </select>
 
 <input id="valor" placeholder="Valor">
 
 <button onclick="salvar()">Adicionar</button>
+
+</div>
+
+<div class="card">
+
+<h3>Distribuição</h3>
+
+<canvas id="grafico"></canvas>
 
 </div>
 
@@ -124,12 +144,14 @@ margin-top:100px;
 <script>
 
 const firebaseConfig = {
+
 apiKey: "AIzaSyAg_-NgzbE7km9oPGDkEUzTAtUYnIqWdIY",
 authDomain: "financas-app-521a6.firebaseapp.com",
 projectId: "financas-app-521a6",
 storageBucket: "financas-app-521a6.appspot.com",
 messagingSenderId: "556906717820",
 appId: "1:556906717820:web:8b0c1e145ec21685d3dff9"
+
 };
 
 firebase.initializeApp(firebaseConfig)
@@ -138,6 +160,7 @@ const auth = firebase.auth()
 const db = firebase.firestore()
 
 let userId = null
+let chart = null
 
 function login(){
 
@@ -177,16 +200,20 @@ function salvar(){
 
 const descricao = document.getElementById("descricao").value
 const tipo = document.getElementById("tipo").value
+const categoria = document.getElementById("categoria").value
 const valor = parseFloat(document.getElementById("valor").value)
 
 db.collection("usuarios")
 .doc(userId)
 .collection("transacoes")
 .add({
+
 descricao,
 tipo,
+categoria,
 valor,
 data:Date.now()
+
 })
 
 document.getElementById("descricao").value=""
@@ -203,9 +230,12 @@ db.collection("usuarios")
 .onSnapshot(snapshot=>{
 
 let lista = document.getElementById("lista")
+
 lista.innerHTML=""
 
 let saldo=0
+
+let categorias={}
 
 snapshot.forEach(doc=>{
 
@@ -215,19 +245,48 @@ if(t.tipo==="receita"){
 saldo += t.valor
 }else{
 saldo -= t.valor
+
+if(!categorias[t.categoria]){
+categorias[t.categoria]=0
 }
 
-lista.innerHTML += `
-<div class="item">
+categorias[t.categoria]+=t.valor
+
+}
+
+lista.innerHTML +=
+
+`<div class="item">
 <span>${t.descricao}</span>
 <span>R$ ${t.valor}</span>
-</div>
-`
+</div>`
 
 })
 
-document.getElementById("saldo").innerText = "R$ " + saldo.toFixed(2)
+document.getElementById("saldo").innerText="R$ "+saldo.toFixed(2)
 
+criarGrafico(categorias)
+
+})
+
+}
+
+function criarGrafico(categorias){
+
+const ctx = document.getElementById("grafico")
+
+if(chart){
+chart.destroy()
+}
+
+chart = new Chart(ctx,{
+type:"doughnut",
+data:{
+labels:Object.keys(categorias),
+datasets:[{
+data:Object.values(categorias)
+}]
+}
 })
 
 }
