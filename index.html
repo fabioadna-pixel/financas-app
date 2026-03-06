@@ -1,296 +1,449 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Finanças Pro</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Financeiro Inteligente</title>
+    
+    <!-- Bibliotecas Necessárias -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --success: #10B981;
+            --danger: #EF4444;
+            --bg: #F3F4F6;
+            --card: #FFFFFF;
+            --text: #1F2937;
+        }
 
-<style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        body { background-color: var(--bg); color: var(--text); padding: 20px; }
+        
+        .container { max-width: 1000px; margin: 0 auto; }
+        
+        header { text-align: center; margin-bottom: 20px; }
+        
+        /* Dashboard Cards */
+        .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .card { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
+        .card h3 { font-size: 14px; color: #6B7280; text-transform: uppercase; }
+        .card h2 { font-size: 28px; margin-top: 10px; }
+        .text-success { color: var(--success); }
+        .text-danger { color: var(--danger); }
 
-body{
-font-family:Arial;
-background:#f5f6fb;
-margin:0;
-}
+        /* Form e Layout Principal */
+        .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        @media (max-width: 768px) { .main-content { grid-template-columns: 1fr; } }
 
-.header{
-background:linear-gradient(135deg,#5b5bd6,#7f8cff);
-color:white;
-padding:40px;
-text-align:center;
-border-radius:0 0 20px 20px;
-}
+        .form-section, .chart-section { background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        
+        form { display: flex; flex-direction: column; gap: 15px; }
+        input, select, button { padding: 12px; border: 1px solid #D1D5DB; border-radius: 6px; font-size: 16px; }
+        
+        .btn-primary { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; }
+        .btn-primary:hover { background: #4338CA; }
+        .btn-ocr { background: #374151; color: white; border: none; cursor: pointer; }
+        
+        /* Histórico */
+        .history-section { background: var(--card); padding: 20px; border-radius: 10px; margin-top: 20px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #E5E7EB; }
+        
+        /* Ações Extras */
+        .actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .btn-action { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; }
+        .btn-whatsapp { background: #25D366; }
+        .btn-sync { background: #F59E0B; }
 
-.container{
-max-width:600px;
-margin:auto;
-padding:20px;
-}
-
-.card{
-background:white;
-padding:20px;
-border-radius:15px;
-margin-bottom:20px;
-box-shadow:0 5px 15px rgba(0,0,0,0.1);
-}
-
-input,select{
-width:100%;
-padding:10px;
-margin-top:10px;
-margin-bottom:10px;
-border-radius:10px;
-border:1px solid #ddd;
-}
-
-button{
-background:#5b5bd6;
-color:white;
-border:none;
-padding:12px;
-width:100%;
-border-radius:10px;
-font-size:16px;
-cursor:pointer;
-}
-
-.item{
-display:flex;
-justify-content:space-between;
-border-bottom:1px solid #eee;
-padding:10px;
-}
-
-.login{
-text-align:center;
-margin-top:100px;
-}
-
-</style>
+        #loading { display: none; color: var(--primary); font-weight: bold; font-size: 14px; }
+        .img-preview { max-width: 100%; height: 100px; object-fit: cover; display: none; border-radius: 5px; margin-top: 5px; }
+    </style>
 </head>
-
 <body>
 
-<div id="login" class="login">
-<h2>Entrar</h2>
-<button onclick="login()">Entrar com Google</button>
-</div>
-
-<div id="app" style="display:none">
-
-<div class="header">
-<h1>Finanças Pro</h1>
-<h2 id="saldo">R$ 0</h2>
-</div>
-
 <div class="container">
+    <header>
+        <h1>💸 Controle Financeiro</h1>
+    </header>
 
-<div class="card">
+    <div class="dashboard">
+        <div class="card">
+            <h3>Saldo Atual</h3>
+            <h2 id="total-balance">R$ 0,00</h2>
+        </div>
+        <div class="card">
+            <h3>Receitas</h3>
+            <h2 id="total-income" class="text-success">R$ 0,00</h2>
+        </div>
+        <div class="card">
+            <h3>Despesas</h3>
+            <h2 id="total-expense" class="text-danger">R$ 0,00</h2>
+        </div>
+    </div>
 
-<h3>Nova Transação</h3>
+    <div class="main-content">
+        <!-- Formulário -->
+        <div class="form-section">
+            <h2>Nova Transação</h2><br>
+            <form id="finance-form">
+                <input type="text" id="desc" placeholder="Descrição da compra/receita" required>
+                
+                <div style="display: flex; gap: 10px;">
+                    <input type="number" id="amount" placeholder="Valor (R$)" step="0.01" required style="flex: 1;">
+                    <select id="type" style="flex: 1;" onchange="updateCategories()">
+                        <option value="expense">Despesa</option>
+                        <option value="income">Receita</option>
+                    </select>
+                </div>
 
-<input id="descricao" placeholder="Descrição">
+                <select id="category" required>
+                    <!-- Categorias geradas dinamicamente -->
+                </select>
 
-<select id="tipo">
-<option value="receita">Receita</option>
-<option value="despesa">Despesa</option>
-</select>
+                <input type="date" id="date" required>
 
-<select id="categoria">
+                <div style="border: 1px dashed #ccc; padding: 10px; border-radius: 6px;">
+                    <label style="font-size: 14px; color: #666;">📸 Tirar foto da nota (Opcional)</label>
+                    <input type="file" id="receiptFile" accept="image/*" capture="environment" style="width: 100%; margin-top: 5px;">
+                    <button type="button" class="btn-ocr" onclick="extractOCR()" style="width: 100%; margin-top: 10px;">🔍 Ler Valor da Nota</button>
+                    <p id="loading">Processando imagem... (Pode demorar uns segundos)</p>
+                    <img id="img-preview" class="img-preview">
+                </div>
 
-<option>Alimentação</option>
-<option>Transporte</option>
-<option>Moradia</option>
-<option>Saúde</option>
-<option>Lazer</option>
-<option>Salário</option>
-<option>Outros</option>
+                <button type="submit" class="btn-primary">Adicionar Transação</button>
+            </form>
+        </div>
 
-</select>
+        <!-- Gráfico -->
+        <div class="chart-section">
+            <h2>Despesas por Categoria</h2>
+            <canvas id="expenseChart"></canvas>
+        </div>
+    </div>
 
-<input id="valor" placeholder="Valor">
+    <!-- Histórico -->
+    <div class="history-section">
+        <h2>Histórico de Transações</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Descrição</th>
+                    <th>Categoria</th>
+                    <th>Valor</th>
+                    <th>Nota</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="history-list"></tbody>
+        </table>
+    </div>
 
-<button onclick="salvar()">Adicionar</button>
-
-</div>
-
-<div class="card">
-
-<h3>Distribuição</h3>
-
-<canvas id="grafico"></canvas>
-
-</div>
-
-<div class="card">
-
-<h3>Histórico</h3>
-
-<div id="lista"></div>
-
-</div>
-
-<button onclick="logout()">Sair</button>
-
-</div>
-
+    <!-- Ações Inferiores -->
+    <div class="actions">
+        <button class="btn-action btn-whatsapp" onclick="generateAndSharePDF()">📤 Enviar Relatório e Notas (WhatsApp)</button>
+        <button class="btn-action btn-sync" onclick="exportData()">🔄 Compartilhar / Exportar Dados</button>
+        <button class="btn-action btn-sync" onclick="importData()">📥 Importar Dados</button>
+    </div>
 </div>
 
 <script>
+    // --- INICIALIZAÇÃO E DADOS ---
+    let transactions = JSON.parse(localStorage.getItem('finances')) ||[];
+    let currentReceiptBase64 = null;
+    let chartInstance = null;
 
-const firebaseConfig = {
+    const categories = {
+        expense:['Alimentação', 'Transporte', 'Moradia', 'Lazer', 'Saúde', 'Outros'],
+        income:['Salário', 'Freelance', 'Investimentos', 'Outros']
+    };
 
-apiKey: "AIzaSyAg_-NgzbE7km9oPGDkEUzTAtUYnIqWdIY",
-authDomain: "financas-app-521a6.firebaseapp.com",
-projectId: "financas-app-521a6",
-storageBucket: "financas-app-521a6.appspot.com",
-messagingSenderId: "556906717820",
-appId: "1:556906717820:web:8b0c1e145ec21685d3dff9"
+    // Atualiza opções de categoria baseado no tipo
+    function updateCategories() {
+        const type = document.getElementById('type').value;
+        const catSelect = document.getElementById('category');
+        catSelect.innerHTML = '';
+        categories[type].forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.innerText = cat;
+            catSelect.appendChild(opt);
+        });
+    }
 
-};
+    document.getElementById('date').valueAsDate = new Date();
+    updateCategories();
 
-firebase.initializeApp(firebaseConfig)
+    // --- LÓGICA DO FORMULÁRIO ---
+    document.getElementById('finance-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const transaction = {
+            id: Date.now(),
+            desc: document.getElementById('desc').value,
+            amount: parseFloat(document.getElementById('amount').value),
+            type: document.getElementById('type').value,
+            category: document.getElementById('category').value,
+            date: document.getElementById('date').value,
+            receipt: currentReceiptBase64
+        };
 
-const auth = firebase.auth()
-const db = firebase.firestore()
+        transactions.push(transaction);
+        saveData();
+        updateUI();
+        
+        // Resetar form (menos a data)
+        document.getElementById('desc').value = '';
+        document.getElementById('amount').value = '';
+        document.getElementById('receiptFile').value = '';
+        currentReceiptBase64 = null;
+        document.getElementById('img-preview').style.display = 'none';
+    });
 
-let userId = null
-let chart = null
+    function deleteTransaction(id) {
+        transactions = transactions.filter(t => t.id !== id);
+        saveData();
+        updateUI();
+    }
 
-function login(){
+    function saveData() {
+        // Devido ao limite de 5MB do localStorage, salvamos imagens muito comprimidas.
+        localStorage.setItem('finances', JSON.stringify(transactions));
+    }
 
-const provider = new firebase.auth.GoogleAuthProvider()
+    // --- COMPRESSÃO DE IMAGEM ---
+    function compressImage(file, callback) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = event => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 600; // Reduz tamanho para não estourar o limite do navegador
+                const scaleSize = MAX_WIDTH / img.width;
+                canvas.width = MAX_WIDTH;
+                canvas.height = img.height * scaleSize;
+                
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                callback(canvas.toDataURL('image/jpeg', 0.6)); // Qualidade 60%
+            }
+        }
+    }
 
-auth.signInWithPopup(provider)
+    document.getElementById('receiptFile').addEventListener('change', function(e) {
+        if(e.target.files[0]) {
+            compressImage(e.target.files[0], (base64) => {
+                currentReceiptBase64 = base64;
+                const imgPreview = document.getElementById('img-preview');
+                imgPreview.src = base64;
+                imgPreview.style.display = 'block';
+            });
+        }
+    });
 
-}
+    // --- LEITURA DE NOTA (OCR) ---
+    async function extractOCR() {
+        const fileInput = document.getElementById('receiptFile');
+        if (!fileInput.files[0]) return alert('Selecione ou tire a foto da nota primeiro!');
+        
+        const loading = document.getElementById('loading');
+        loading.style.display = 'block';
 
-function logout(){
+        try {
+            const worker = await Tesseract.createWorker('por');
+            const ret = await worker.recognize(fileInput.files[0]);
+            const text = ret.data.text;
+            
+            // Procura padrões de dinheiro (ex: 15,99 / 1.000,50)
+            const regex = /\b\d{1,3}(?:\.\d{3})*(?:,\d{2})\b/g;
+            const matches = text.match(regex);
+            
+            if (matches) {
+                // Converte para float e pega o maior valor (geralmente o Total)
+                const values = matches.map(m => parseFloat(m.replace(/\./g, '').replace(',', '.')));
+                const max = Math.max(...values);
+                document.getElementById('amount').value = max.toFixed(2);
+                alert('Valor detectado: R$ ' + max.toFixed(2).replace('.', ','));
+            } else {
+                alert('Não foi possível encontrar o valor total na nota automaticamente. Verifique se a foto está legível.');
+            }
+            await worker.terminate();
+        } catch (error) {
+            alert('Erro ao processar imagem.');
+            console.error(error);
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
 
-auth.signOut()
+    // --- ATUALIZAÇÃO DE INTERFACE ---
+    function updateUI() {
+        const historyList = document.getElementById('history-list');
+        historyList.innerHTML = '';
+        
+        let income = 0, expense = 0;
+        let expensesByCategory = {};
 
-}
+        // Ordenar por data (mais recente primeiro)
+        const sorted = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
 
-auth.onAuthStateChanged(user=>{
+        sorted.forEach(t => {
+            // Cálculos
+            if(t.type === 'income') income += t.amount;
+            else {
+                expense += t.amount;
+                expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + t.amount;
+            }
 
-if(user){
+            // Tabela
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                <td>${t.desc}</td>
+                <td>${t.category}</td>
+                <td class="${t.type === 'income' ? 'text-success' : 'text-danger'}">
+                    R$ ${t.amount.toFixed(2).replace('.', ',')}
+                </td>
+                <td>${t.receipt ? '🖼️ Sim' : '❌ Não'}</td>
+                <td><button onclick="deleteTransaction(${t.id})" style="color:red; cursor:pointer; background:none; border:none; font-weight:bold;">X</button></td>
+            `;
+            historyList.appendChild(tr);
+        });
 
-userId = user.uid
+        document.getElementById('total-income').innerText = `R$ ${income.toFixed(2).replace('.', ',')}`;
+        document.getElementById('total-expense').innerText = `R$ ${expense.toFixed(2).replace('.', ',')}`;
+        document.getElementById('total-balance').innerText = `R$ ${(income - expense).toFixed(2).replace('.', ',')}`;
 
-document.getElementById("login").style.display="none"
-document.getElementById("app").style.display="block"
+        updateChart(expensesByCategory);
+    }
 
-carregar()
+    // --- GRÁFICO (Chart.js) ---
+    function updateChart(dataObj) {
+        const ctx = document.getElementById('expenseChart').getContext('2d');
+        if(chartInstance) chartInstance.destroy();
 
-}else{
+        const labels = Object.keys(dataObj);
+        const data = Object.values(dataObj);
 
-document.getElementById("login").style.display="block"
-document.getElementById("app").style.display="none"
+        chartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets:[{
+                    data: data,
+                    backgroundColor:['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
 
-}
+    // --- GERAR PDF E ENVIAR PARA WHATSAPP ---
+    async function generateAndSharePDF() {
+        if(transactions.length === 0) return alert('Nenhuma transação para exportar.');
+        
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        doc.setFontSize(18);
+        doc.text("Relatório Financeiro", 14, 20);
+        
+        // Tabela de Transações
+        const tableData = transactions.map(t =>[
+            new Date(t.date).toLocaleDateString('pt-BR'),
+            t.desc,
+            t.category,
+            t.type === 'income' ? 'Receita' : 'Despesa',
+            `R$ ${t.amount.toFixed(2).replace('.', ',')}`
+        ]);
 
-})
+        doc.autoTable({
+            startY: 30,
+            head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']],
+            body: tableData,
+        });
 
-function salvar(){
+        // Adicionar Fotos das Notas no final do PDF
+        const withReceipts = transactions.filter(t => t.receipt);
+        if(withReceipts.length > 0) {
+            doc.addPage();
+            doc.text("Fotos das Notas Anexadas", 14, 20);
+            let y = 30;
+            
+            withReceipts.forEach((t, index) => {
+                if(y > 250) { doc.addPage(); y = 20; }
+                doc.setFontSize(12);
+                doc.text(`Nota: ${t.desc} - R$ ${t.amount.toFixed(2)} (${t.category})`, 14, y);
+                doc.addImage(t.receipt, 'JPEG', 14, y + 5, 80, 0); // Ajusta proporção automática
+                y += 100; // Espaço para a próxima
+            });
+        }
 
-const descricao = document.getElementById("descricao").value
-const tipo = document.getElementById("tipo").value
-const categoria = document.getElementById("categoria").value
-const valor = parseFloat(document.getElementById("valor").value)
+        const pdfBlob = doc.output('blob');
+        const file = new File([pdfBlob], "Relatorio_Financeiro.pdf", { type: "application/pdf" });
 
-db.collection("usuarios")
-.doc(userId)
-.collection("transacoes")
-.add({
+        // Tentar Compartilhar via Web Share API (WhatsApp etc) - Funciona em mobile
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: 'Relatório Financeiro',
+                    text: 'Segue o relatório financeiro com as notas fiscais anexadas por categoria.'
+                });
+            } catch (err) { console.log('Compartilhamento cancelado', err); }
+        } else {
+            // Fallback para PC: Faz o download e abre link do web.whatsapp
+            const url = URL.createObjectURL(pdfBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "Relatorio_Financeiro.pdf";
+            a.click();
+            
+            setTimeout(() => {
+                const msg = encodeURIComponent("Aqui está meu relatório financeiro. Acabei de baixar o PDF!");
+                window.open(`https://api.whatsapp.com/send?text=${msg}`, "_blank");
+            }, 1000);
+        }
+    }
 
-descricao,
-tipo,
-categoria,
-valor,
-data:Date.now()
+    // --- COMPARTILHAMENTO / ACESSO PARA OUTRA PESSOA ---
+    function exportData() {
+        const dataStr = JSON.stringify(transactions);
+        const encoded = btoa(encodeURIComponent(dataStr)); // Codifica em Base64
+        navigator.clipboard.writeText(encoded).then(() => {
+            alert("Código de sincronização copiado!\nEnvie este código no WhatsApp da outra pessoa para ela clicar em 'Importar'.");
+        }).catch(() => {
+            prompt("Copie o código abaixo e envie para a outra pessoa:", encoded);
+        });
+    }
 
-})
+    function importData() {
+        const code = prompt("Cole aqui o código de sincronização que a outra pessoa te enviou:");
+        if(!code) return;
+        try {
+            const decoded = decodeURIComponent(atob(code));
+            const importedTransactions = JSON.parse(decoded);
+            if(Array.isArray(importedTransactions)) {
+                transactions = importedTransactions;
+                saveData();
+                updateUI();
+                alert("Dados importados com sucesso!");
+            }
+        } catch(e) {
+            alert("Código inválido!");
+        }
+    }
 
-document.getElementById("descricao").value=""
-document.getElementById("valor").value=""
-
-}
-
-function carregar(){
-
-db.collection("usuarios")
-.doc(userId)
-.collection("transacoes")
-.orderBy("data","desc")
-.onSnapshot(snapshot=>{
-
-let lista = document.getElementById("lista")
-
-lista.innerHTML=""
-
-let saldo=0
-
-let categorias={}
-
-snapshot.forEach(doc=>{
-
-const t = doc.data()
-
-if(t.tipo==="receita"){
-saldo += t.valor
-}else{
-saldo -= t.valor
-
-if(!categorias[t.categoria]){
-categorias[t.categoria]=0
-}
-
-categorias[t.categoria]+=t.valor
-
-}
-
-lista.innerHTML +=
-
-`<div class="item">
-<span>${t.descricao}</span>
-<span>R$ ${t.valor}</span>
-</div>`
-
-})
-
-document.getElementById("saldo").innerText="R$ "+saldo.toFixed(2)
-
-criarGrafico(categorias)
-
-})
-
-}
-
-function criarGrafico(categorias){
-
-const ctx = document.getElementById("grafico")
-
-if(chart){
-chart.destroy()
-}
-
-chart = new Chart(ctx,{
-type:"doughnut",
-data:{
-labels:Object.keys(categorias),
-datasets:[{
-data:Object.values(categorias)
-}]
-}
-})
-
-}
-
+    // Inicializa a tela
+    updateUI();
 </script>
 
 </body>
