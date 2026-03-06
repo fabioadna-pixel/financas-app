@@ -49,6 +49,8 @@
         .btn-primary { background: var(--primary); color: white; border: none; cursor: pointer; font-weight: bold; }
         .btn-primary:hover { background: #4338CA; }
         .btn-ocr { background: #374151; color: white; border: none; cursor: pointer; }
+        .btn-danger { background: var(--danger); color: white; border: none; cursor: pointer; font-weight: bold; }
+        .btn-danger:hover { background: #DC2626; }
         
         /* Histórico */
         .history-section { background: var(--card); padding: 20px; border-radius: 10px; margin-top: 20px; overflow-x: auto; }
@@ -63,6 +65,12 @@
 
         #loading { display: none; color: var(--primary); font-weight: bold; font-size: 14px; }
         .img-preview { max-width: 100%; height: 100px; object-fit: cover; display: none; border-radius: 5px; margin-top: 5px; }
+
+        /* Gerenciador de Categorias */
+        .category-manager { display: none; border: 1px dashed #ccc; padding: 15px; border-radius: 6px; background: #F9FAFB; }
+        .category-list { list-style: none; padding: 0; margin: 10px 0; max-height: 150px; overflow-y: auto; }
+        .category-list li { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #E5E7EB; background: white; margin-bottom: 5px; border-radius: 4px; }
+        .category-list button { padding: 2px 8px; font-size: 12px; background: transparent; border: none; color: red; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -102,9 +110,22 @@
                     </select>
                 </div>
 
-                <select id="category" required>
-                    <!-- Categorias geradas dinamicamente -->
-                </select>
+                <!-- Categoria e botão de gerenciar -->
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <select id="category" required style="flex: 1;"></select>
+                    <button type="button" class="btn-ocr" onclick="toggleCategoryManager()" style="padding: 12px; border-radius: 6px; width: auto;" title="Gerenciar Categorias">⚙️</button>
+                </div>
+
+                <!-- Painel Gerenciador de Categorias -->
+                <div id="category-manager" class="category-manager">
+                    <h4 style="margin-bottom: 10px;">Gerenciar Categorias (<span id="manager-type-label">Despesa</span>)</h4>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" id="new-category" placeholder="Nova categoria..." style="flex: 1; padding: 8px;">
+                        <button type="button" class="btn-primary" onclick="addCategory()" style="padding: 8px 15px;">➕</button>
+                    </div>
+                    <ul id="category-list" class="category-list"></ul>
+                    <button type="button" class="btn-danger" onclick="resetCategories()" style="width: 100%; padding: 10px; font-size: 14px;">🔄 Restaurar Categorias Padrões</button>
+                </div>
 
                 <input type="date" id="date" required>
 
@@ -147,8 +168,8 @@
 
     <!-- Ações Inferiores -->
     <div class="actions">
-        <button class="btn-action btn-whatsapp" onclick="generateAndSharePDF()">📤 Enviar Relatório e Notas (WhatsApp)</button>
-        <button class="btn-action btn-sync" onclick="exportData()">🔄 Compartilhar / Exportar Dados</button>
+        <button class="btn-action btn-whatsapp" onclick="generateAndSharePDF()">📤 Enviar Relatório (WhatsApp)</button>
+        <button class="btn-action btn-sync" onclick="exportData()">🔄 Compartilhar Dados</button>
         <button class="btn-action btn-sync" onclick="importData()">📥 Importar Dados</button>
     </div>
 </div>
@@ -159,22 +180,94 @@
     let currentReceiptBase64 = null;
     let chartInstance = null;
 
-    const categories = {
+    // Categorias padrão do sistema
+    const defaultCategories = {
         expense:['Alimentação', 'Transporte', 'Moradia', 'Lazer', 'Saúde', 'Outros'],
-        income:['Salário', 'Freelance', 'Investimentos', 'Outros']
+        income: ['Salário', 'Freelance', 'Investimentos', 'Outros']
     };
 
-    // Atualiza opções de categoria baseado no tipo
+    // Carrega categorias salvas ou usa as padrões
+    let categories = JSON.parse(localStorage.getItem('customCategories')) || JSON.parse(JSON.stringify(defaultCategories));
+
+    // Salva as categorias no LocalStorage
+    function saveCategories() {
+        localStorage.setItem('customCategories', JSON.stringify(categories));
+    }
+
+    // --- GERENCIAMENTO DE CATEGORIAS ---
     function updateCategories() {
         const type = document.getElementById('type').value;
         const catSelect = document.getElementById('category');
         catSelect.innerHTML = '';
+        
         categories[type].forEach(cat => {
             const opt = document.createElement('option');
             opt.value = cat;
             opt.innerText = cat;
             catSelect.appendChild(opt);
         });
+
+        document.getElementById('manager-type-label').innerText = type === 'expense' ? 'Despesa' : 'Receita';
+        renderCategoryManagerList();
+    }
+
+    function toggleCategoryManager() {
+        const manager = document.getElementById('category-manager');
+        manager.style.display = manager.style.display === 'none' ? 'block' : 'none';
+        renderCategoryManagerList();
+    }
+
+    function renderCategoryManagerList() {
+        const type = document.getElementById('type').value;
+        const list = document.getElementById('category-list');
+        list.innerHTML = '';
+
+        categories[type].forEach(cat => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <span>${cat}</span>
+                <button type="button" onclick="deleteCategory('${type}', '${cat}')">❌</button>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    function addCategory() {
+        const input = document.getElementById('new-category');
+        const newCat = input.value.trim();
+        const type = document.getElementById('type').value;
+
+        if (!newCat) return alert("Digite um nome para a categoria!");
+        if (categories[type].includes(newCat)) return alert("Esta categoria já existe!");
+
+        categories[type].push(newCat);
+        saveCategories();
+        updateCategories();
+        input.value = '';
+    }
+
+    function deleteCategory(type, catName) {
+        // Verifica se a categoria está em uso
+        const isInUse = transactions.some(t => t.type === type && t.category === catName);
+        if (isInUse) {
+            if (!confirm(`A categoria "${catName}" está sendo usada no seu histórico. Tem certeza que deseja excluir? (O histórico não será apagado).`)) {
+                return;
+            }
+        } else {
+            if (!confirm(`Deseja realmente excluir a categoria "${catName}"?`)) return;
+        }
+
+        categories[type] = categories[type].filter(c => c !== catName);
+        saveCategories();
+        updateCategories();
+    }
+
+    function resetCategories() {
+        if (confirm("ATENÇÃO: Isso vai apagar TODAS as categorias criadas e voltar para o padrão do sistema. Tem certeza?")) {
+            categories = JSON.parse(JSON.stringify(defaultCategories));
+            saveCategories();
+            updateCategories();
+        }
     }
 
     document.getElementById('date').valueAsDate = new Date();
@@ -195,10 +288,9 @@
         };
 
         transactions.push(transaction);
-        saveData();
+        saveTransactions();
         updateUI();
         
-        // Resetar form (menos a data)
         document.getElementById('desc').value = '';
         document.getElementById('amount').value = '';
         document.getElementById('receiptFile').value = '';
@@ -207,13 +299,14 @@
     });
 
     function deleteTransaction(id) {
-        transactions = transactions.filter(t => t.id !== id);
-        saveData();
-        updateUI();
+        if(confirm("Deseja apagar essa transação?")) {
+            transactions = transactions.filter(t => t.id !== id);
+            saveTransactions();
+            updateUI();
+        }
     }
 
-    function saveData() {
-        // Devido ao limite de 5MB do localStorage, salvamos imagens muito comprimidas.
+    function saveTransactions() {
         localStorage.setItem('finances', JSON.stringify(transactions));
     }
 
@@ -226,14 +319,14 @@
             img.src = event.target.result;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_WIDTH = 600; // Reduz tamanho para não estourar o limite do navegador
+                const MAX_WIDTH = 600; 
                 const scaleSize = MAX_WIDTH / img.width;
                 canvas.width = MAX_WIDTH;
                 canvas.height = img.height * scaleSize;
                 
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                callback(canvas.toDataURL('image/jpeg', 0.6)); // Qualidade 60%
+                callback(canvas.toDataURL('image/jpeg', 0.6));
             }
         }
     }
@@ -262,18 +355,16 @@
             const ret = await worker.recognize(fileInput.files[0]);
             const text = ret.data.text;
             
-            // Procura padrões de dinheiro (ex: 15,99 / 1.000,50)
             const regex = /\b\d{1,3}(?:\.\d{3})*(?:,\d{2})\b/g;
             const matches = text.match(regex);
             
             if (matches) {
-                // Converte para float e pega o maior valor (geralmente o Total)
                 const values = matches.map(m => parseFloat(m.replace(/\./g, '').replace(',', '.')));
                 const max = Math.max(...values);
                 document.getElementById('amount').value = max.toFixed(2);
                 alert('Valor detectado: R$ ' + max.toFixed(2).replace('.', ','));
             } else {
-                alert('Não foi possível encontrar o valor total na nota automaticamente. Verifique se a foto está legível.');
+                alert('Não foi possível encontrar o valor total na nota automaticamente.');
             }
             await worker.terminate();
         } catch (error) {
@@ -292,18 +383,15 @@
         let income = 0, expense = 0;
         let expensesByCategory = {};
 
-        // Ordenar por data (mais recente primeiro)
-        const sorted = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+        const sorted =[...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
 
         sorted.forEach(t => {
-            // Cálculos
             if(t.type === 'income') income += t.amount;
             else {
                 expense += t.amount;
                 expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + t.amount;
             }
 
-            // Tabela
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${new Date(t.date).toLocaleDateString('pt-BR')}</td>
@@ -313,7 +401,7 @@
                     R$ ${t.amount.toFixed(2).replace('.', ',')}
                 </td>
                 <td>${t.receipt ? '🖼️ Sim' : '❌ Não'}</td>
-                <td><button onclick="deleteTransaction(${t.id})" style="color:red; cursor:pointer; background:none; border:none; font-weight:bold;">X</button></td>
+                <td><button onclick="deleteTransaction(${t.id})" style="color:red; cursor:pointer; background:none; border:none; font-weight:bold; font-size:16px;">X</button></td>
             `;
             historyList.appendChild(tr);
         });
@@ -339,7 +427,7 @@
                 labels: labels,
                 datasets:[{
                     data: data,
-                    backgroundColor:['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899']
+                    backgroundColor:['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6', '#F43F5E']
                 }]
             },
             options: { responsive: true, maintainAspectRatio: false }
@@ -356,7 +444,6 @@
         doc.setFontSize(18);
         doc.text("Relatório Financeiro", 14, 20);
         
-        // Tabela de Transações
         const tableData = transactions.map(t =>[
             new Date(t.date).toLocaleDateString('pt-BR'),
             t.desc,
@@ -365,48 +452,36 @@
             `R$ ${t.amount.toFixed(2).replace('.', ',')}`
         ]);
 
-        doc.autoTable({
-            startY: 30,
-            head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']],
-            body: tableData,
-        });
+        doc.autoTable({ startY: 30, head: [['Data', 'Descrição', 'Categoria', 'Tipo', 'Valor']], body: tableData });
 
-        // Adicionar Fotos das Notas no final do PDF
         const withReceipts = transactions.filter(t => t.receipt);
         if(withReceipts.length > 0) {
             doc.addPage();
             doc.text("Fotos das Notas Anexadas", 14, 20);
             let y = 30;
             
-            withReceipts.forEach((t, index) => {
+            withReceipts.forEach((t) => {
                 if(y > 250) { doc.addPage(); y = 20; }
                 doc.setFontSize(12);
                 doc.text(`Nota: ${t.desc} - R$ ${t.amount.toFixed(2)} (${t.category})`, 14, y);
-                doc.addImage(t.receipt, 'JPEG', 14, y + 5, 80, 0); // Ajusta proporção automática
-                y += 100; // Espaço para a próxima
+                doc.addImage(t.receipt, 'JPEG', 14, y + 5, 80, 0); 
+                y += 100;
             });
         }
 
         const pdfBlob = doc.output('blob');
         const file = new File([pdfBlob], "Relatorio_Financeiro.pdf", { type: "application/pdf" });
 
-        // Tentar Compartilhar via Web Share API (WhatsApp etc) - Funciona em mobile
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try {
-                await navigator.share({
-                    files: [file],
-                    title: 'Relatório Financeiro',
-                    text: 'Segue o relatório financeiro com as notas fiscais anexadas por categoria.'
-                });
+                await navigator.share({ files: [file], title: 'Relatório Financeiro', text: 'Segue o relatório financeiro.' });
             } catch (err) { console.log('Compartilhamento cancelado', err); }
         } else {
-            // Fallback para PC: Faz o download e abre link do web.whatsapp
             const url = URL.createObjectURL(pdfBlob);
             const a = document.createElement('a');
             a.href = url;
             a.download = "Relatorio_Financeiro.pdf";
             a.click();
-            
             setTimeout(() => {
                 const msg = encodeURIComponent("Aqui está meu relatório financeiro. Acabei de baixar o PDF!");
                 window.open(`https://api.whatsapp.com/send?text=${msg}`, "_blank");
@@ -417,23 +492,23 @@
     // --- COMPARTILHAMENTO / ACESSO PARA OUTRA PESSOA ---
     function exportData() {
         const dataStr = JSON.stringify(transactions);
-        const encoded = btoa(encodeURIComponent(dataStr)); // Codifica em Base64
+        const encoded = btoa(encodeURIComponent(dataStr)); 
         navigator.clipboard.writeText(encoded).then(() => {
-            alert("Código de sincronização copiado!\nEnvie este código no WhatsApp da outra pessoa para ela clicar em 'Importar'.");
+            alert("Código copiado! Envie este código no WhatsApp para a outra pessoa importar.");
         }).catch(() => {
-            prompt("Copie o código abaixo e envie para a outra pessoa:", encoded);
+            prompt("Copie o código abaixo e envie:", encoded);
         });
     }
 
     function importData() {
-        const code = prompt("Cole aqui o código de sincronização que a outra pessoa te enviou:");
+        const code = prompt("Cole aqui o código de sincronização:");
         if(!code) return;
         try {
             const decoded = decodeURIComponent(atob(code));
             const importedTransactions = JSON.parse(decoded);
             if(Array.isArray(importedTransactions)) {
                 transactions = importedTransactions;
-                saveData();
+                saveTransactions();
                 updateUI();
                 alert("Dados importados com sucesso!");
             }
