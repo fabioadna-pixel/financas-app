@@ -1,32 +1,20 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças Pro</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 <style>
 
 body{
 font-family:Arial;
+background:#f5f6fb;
 margin:0;
-background:#f3f4f6;
-}
-
-.header{
-background:linear-gradient(135deg,#4f46e5,#818cf8);
-color:white;
-padding:40px;
-text-align:center;
-border-bottom-left-radius:30px;
-border-bottom-right-radius:30px;
-}
-
-.balance{
-font-size:42px;
-font-weight:bold;
+padding:0;
 }
 
 .container{
@@ -38,49 +26,49 @@ padding:20px;
 .card{
 background:white;
 padding:20px;
-border-radius:12px;
+border-radius:15px;
 margin-bottom:20px;
 box-shadow:0 5px 15px rgba(0,0,0,0.1);
 }
 
+.header{
+background:linear-gradient(135deg,#5b5bd6,#7f8cff);
+color:white;
+padding:40px;
+text-align:center;
+border-radius:0 0 20px 20px;
+}
+
 input,select{
 width:100%;
-padding:12px;
+padding:10px;
 margin-top:10px;
 margin-bottom:10px;
-border-radius:8px;
+border-radius:10px;
 border:1px solid #ddd;
 }
 
 button{
-background:#4f46e5;
+background:#5b5bd6;
 color:white;
 border:none;
 padding:12px;
-border-radius:10px;
-cursor:pointer;
 width:100%;
+border-radius:10px;
 font-size:16px;
+cursor:pointer;
+}
+
+.item{
+display:flex;
+justify-content:space-between;
+padding:10px;
+border-bottom:1px solid #eee;
 }
 
 .login{
 text-align:center;
 margin-top:100px;
-}
-
-.history-item{
-display:flex;
-justify-content:space-between;
-padding:10px 0;
-border-bottom:1px solid #eee;
-}
-
-.red{
-color:red;
-}
-
-.green{
-color:green;
 }
 
 </style>
@@ -89,62 +77,41 @@ color:green;
 <body>
 
 <div id="login" class="login">
-
 <h2>Entrar</h2>
-
 <button onclick="login()">Entrar com Google</button>
-
 </div>
-
 
 <div id="app" style="display:none">
 
 <div class="header">
-
-<h1>Finanças Pro 📸</h1>
-
-<p>Saldo Atual</p>
-
-<div id="balance" class="balance">R$ 0</div>
-
+<h1>Finanças Pro</h1>
+<h2 id="saldo">R$ 0</h2>
 </div>
 
-
 <div class="container">
-
 
 <div class="card">
 
 <h3>Nova Transação</h3>
 
-<input id="desc" placeholder="Descrição">
+<input id="descricao" placeholder="Descrição">
 
-<select id="type">
-<option value="expense">Despesa</option>
-<option value="income">Receita</option>
+<select id="tipo">
+<option value="despesa">Despesa</option>
+<option value="receita">Receita</option>
 </select>
 
-<input id="value" type="number" placeholder="Valor">
+<input id="valor" placeholder="Valor">
 
-<button onclick="save()">Adicionar</button>
-
-</div>
-
-
-<div class="card">
-
-<h3>Distribuição</h3>
-
-<canvas id="chart"></canvas>
+<button onclick="salvar()">Adicionar</button>
 
 </div>
-
 
 <div class="card">
 
 <h3>Histórico</h3>
 
-<div id="history"></div>
+<div id="lista"></div>
 
 </div>
 
@@ -154,177 +121,116 @@ color:green;
 
 </div>
 
-
-<script type="module">
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+<script>
 
 const firebaseConfig = {
-
 apiKey: "AIzaSyAg_-NgzbE7km9oPGDkEUzTAtUYnIqWdIY",
 authDomain: "financas-app-521a6.firebaseapp.com",
 projectId: "financas-app-521a6",
-storageBucket: "financas-app-521a6.firebasestorage.app",
+storageBucket: "financas-app-521a6.appspot.com",
 messagingSenderId: "556906717820",
 appId: "1:556906717820:web:8b0c1e145ec21685d3dff9"
-
 };
 
+firebase.initializeApp(firebaseConfig)
 
-const app = initializeApp(firebaseConfig);
+const auth = firebase.auth()
+const db = firebase.firestore()
 
-const auth = getAuth();
+let userId = null
 
-const db = getFirestore();
+function login(){
 
+const provider = new firebase.auth.GoogleAuthProvider()
 
-const provider = new GoogleAuthProvider();
-
-
-window.login = async function(){
-
-await signInWithPopup(auth,provider)
+auth.signInWithPopup(provider)
 
 }
 
+function logout(){
 
-window.logout = async function(){
-
-await signOut(auth)
+auth.signOut()
 
 }
 
-
-onAuthStateChanged(auth,(user)=>{
+auth.onAuthStateChanged(user=>{
 
 if(user){
 
-document.getElementById("login").style.display="none"
+userId = user.uid
 
+document.getElementById("login").style.display="none"
 document.getElementById("app").style.display="block"
 
-load(user)
+carregar()
 
 }else{
 
 document.getElementById("login").style.display="block"
-
 document.getElementById("app").style.display="none"
 
 }
 
 })
 
+function salvar(){
 
-window.save = async function(){
+const descricao = document.getElementById("descricao").value
+const tipo = document.getElementById("tipo").value
+const valor = parseFloat(document.getElementById("valor").value)
 
-let desc=document.getElementById("desc").value
-
-let value=parseFloat(document.getElementById("value").value)
-
-let type=document.getElementById("type").value
-
-let user=auth.currentUser
-
-
-await addDoc(collection(db,"transactions"),{
-
-uid:user.uid,
-
-desc:desc,
-
-value:value,
-
-type:type,
-
-date:Date.now()
-
+db.collection("usuarios")
+.doc(userId)
+.collection("transacoes")
+.add({
+descricao,
+tipo,
+valor,
+data:Date.now()
 })
 
-
-load(user)
+document.getElementById("descricao").value=""
+document.getElementById("valor").value=""
 
 }
 
+function carregar(){
 
-async function load(user){
+db.collection("usuarios")
+.doc(userId)
+.collection("transacoes")
+.orderBy("data","desc")
+.onSnapshot(snapshot=>{
 
-let history=document.getElementById("history")
+let lista = document.getElementById("lista")
+lista.innerHTML=""
 
-history.innerHTML=""
-
-let income=0
-
-let expense=0
-
-
-const q=query(collection(db,"transactions"),where("uid","==",user.uid))
-
-const snapshot=await getDocs(q)
-
+let saldo=0
 
 snapshot.forEach(doc=>{
 
-let data=doc.data()
+const t = doc.data()
 
+if(t.tipo==="receita"){
+saldo += t.valor
+}else{
+saldo -= t.valor
+}
 
-if(data.type=="income") income+=data.value
-else expense+=data.value
-
-
-let div=document.createElement("div")
-
-div.className="history-item"
-
-
-div.innerHTML=
-
-"<span>"+data.desc+"</span>"+
-"<span class='"+(data.type=="income"?"green":"red")+"'>"+
-(data.type=="income"?"+":"-")+" R$ "+data.value+
-"</span>"
-
-
-history.appendChild(div)
+lista.innerHTML += `
+<div class="item">
+<span>${t.descricao}</span>
+<span>R$ ${t.valor}</span>
+</div>
+`
 
 })
 
-
-let balance=income-expense
-
-document.getElementById("balance").innerText="R$ "+balance.toFixed(2)
-
-
-drawChart(income,expense)
-
-}
-
-
-let chart
-
-
-function drawChart(income,expense){
-
-if(chart) chart.destroy()
-
-chart=new Chart(document.getElementById("chart"),{
-
-type:"doughnut",
-
-data:{
-labels:["Receitas","Despesas"],
-datasets:[{
-data:[income,expense]
-}]
-}
+document.getElementById("saldo").innerText = "R$ " + saldo.toFixed(2)
 
 })
 
 }
-
 
 </script>
 
